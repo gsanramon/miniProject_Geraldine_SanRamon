@@ -1,6 +1,6 @@
 # miniProject_Geraldine_SanRamon
 Documents included in this repo are the following:
-1. miniProject_Geraldine_SanRamon folder that has the following files:
+1. miniTest_copy folder that has the following files:
   a. run_me.py - the python script to run with the option to run the full or short test version.
       So in the command line, please type the following if running the full code:
       $ python3 run_me.py full
