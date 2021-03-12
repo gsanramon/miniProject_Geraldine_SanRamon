@@ -14,7 +14,7 @@ srr_dict = {'SRR5660030.1':'2dpi', 'SRR5660033.1':'6dpi', 'SRR5660044.1':'2dpi',
 #to use for #4 logfile
 srr_dict_2 = {'SRR5660030.1':'Donor 1 (2dpi)', 'SRR5660033.1':'Donor 1 (6dpi)', 'SRR5660044.1':'Donor 3 (2dpi)', 'SRR5660045.1':'Donor 3 (6dpi)'}
 
-#1. Get the transcriptome files from SRA. This is skipped if running the test. Short files for are provided.
+#1. Get the transcriptome files from SRA. This is skipped if running the test. Short files for the SRR files are provided in this repo.
 
 if option == "full":
   #get the files from SRA
@@ -23,7 +23,7 @@ if option == "full":
   os.system('wget https://sra-downloadb.be-md.ncbi.nlm.nih.gov/sos2/sra-pub-run-11/SRR5660044/SRR5660044.1')
   os.system('wget https://sra-downloadb.be-md.ncbi.nlm.nih.gov/sos2/sra-pub-run-11/SRR5660045/SRR5660045.1')
   
-  #split the files
+  #split the files into pairs
   os.system('fastq-dump -I --split-files SRR5660030.1')
   os.system('fastq-dump -I --split-files SRR5660033.1')
   os.system('fastq-dump -I --split-files SRR5660044.1')
@@ -78,7 +78,6 @@ sample_info.close()
 
 #run sleuth.R
 os.system('Rscript sleuth.R')
-#os.system('nohup Rscript sleuth.R &')
 
 #read sleuth_log.txt & write to logfile
 with open("sleuth_log.txt") as lines:
@@ -143,7 +142,7 @@ logfile.write('There are '+str(count_contig)+' contigs > 1000 bp in the assembly
 #7. length of the assembly (the total number of bp in all of the contigs > 1000 bp in length)
 logfile.write('There are '+str(con_total_len)+' bp in the assembly.'+'\n')
 
-#write the longest contig to a file as an input for blast
+#write the longest contig to a file as an input for blast query
 contigout = open('contigout.fasta', 'w+') 
 contigout.write('>'+ max_id + '\n' + str(max_contig) + '\n')
 contigout.close()
