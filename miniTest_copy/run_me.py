@@ -4,6 +4,9 @@ from Bio import SeqIO
 Entrez.email = "gsanramon@luc.edu"
 import os
 import gzip
+import sys
+
+option = sys.argv[1]
 
 #define variables for SRR numbers
 srr = ['SRR5660030.1', 'SRR5660033.1', 'SRR5660044.1', 'SRR5660045.1']
@@ -11,29 +14,27 @@ srr_dict = {'SRR5660030.1':'2dpi', 'SRR5660033.1':'6dpi', 'SRR5660044.1':'2dpi',
 #to use for #4 logfile
 srr_dict_2 = {'SRR5660030.1':'Donor 1 (2dpi)', 'SRR5660033.1':'Donor 1 (6dpi)', 'SRR5660044.1':'Donor 3 (2dpi)', 'SRR5660045.1':'Donor 3 (6dpi)'}
 
-#1 get files
+#1. Get the transcriptome files from SRA. This is skipped if running the test. Short files for are provided.
+
+if option == "full":
+  #get the files from SRA
+  os.system('wget https://sra-downloadb.be-md.ncbi.nlm.nih.gov/sos2/sra-pub-run-11/SRR5660030/SRR5660030.1')
+  os.system('wget https://sra-downloadb.be-md.ncbi.nlm.nih.gov/sos2/sra-pub-run-11/SRR5660033/SRR5660033.1')
+  os.system('wget https://sra-downloadb.be-md.ncbi.nlm.nih.gov/sos2/sra-pub-run-11/SRR5660044/SRR5660044.1')
+  os.system('wget https://sra-downloadb.be-md.ncbi.nlm.nih.gov/sos2/sra-pub-run-11/SRR5660045/SRR5660045.1')
+  
+  #split the files
+  os.system('fastq-dump -I --split-files SRR5660030.1')
+  os.system('fastq-dump -I --split-files SRR5660033.1')
+  os.system('fastq-dump -I --split-files SRR5660044.1')
+  os.system('fastq-dump -I --split-files SRR5660045.1')
 
 
 
+#2. Build the index with kallisto using the CDS features of HCMV (NCBI accession EF999921)
 
-
-#split the SRA files
-#do a for loop to split using srr above
-#os.system('fastq-dump -I --split-files '+srr+'SRR5660033.1')
-
-
-
-
-
-
-
-
-
-
-#2
-#retrieve the HCMV (NCBI accession EF999921) genbank file
+#retrieve the HCMV genbank file
 handle = Entrez.efetch(db="nucleotide", id="EF999921", rettype="gb", retmode="text")
-
 #read the genbank file  
 record = SeqIO.read(handle, "genbank")
 #open output fasta file to put CDS features to be extracted from genbank format 
@@ -44,25 +45,24 @@ cds_count = 0
 for feature in record.features:
   if feature.type == "CDS":
     cds_count += 1
-    #print(feature.qualifiers["protein_id"], feature.qualifiers["product"])
+    #Get feature qualifiers "protein_id" and "product" as identifers for the sequences to be written in fasta file
     protein_id = feature.qualifiers["protein_id"]
     product = feature.qualifiers["product"]
     feature_seq = feature.extract(record.seq)
     #FASTA output without line wrapping:
     output_handle.write(">" + ''.join(protein_id) +' '+ ''.join(product) +' from '+ str(record.id) + "\n" + str(feature_seq) + "\n")
 output_handle.close()
-#print(str(cds_count) + " CDS sequences extracted")
 
 #open logfile to write
-logfile = open('logfile.txt', 'w+') 
+logfile = open('miniProject.log', 'w+') 
 logfile.write('The HCMV genome (EF999921) has '+ str(cds_count) +' CDS.'+'\n')
 
 #build a transcriptome index for HCMV with kallisto
 os.system('time kallisto index -i index.idx EF999921.fasta')
 
 
-
 #3. Quantify the TPM of each CDS in each transcriptome using kallisto
+
 #loop to quantify & create sample_info text file for sleuth (used srr list & dictionary above)
 #open file to write sample info table needed for sleuth
 sample_info = open('sample_info.txt', 'w+')
@@ -86,8 +86,8 @@ with open("sleuth_log.txt") as lines:
         logfile.write(line)
 
 
-
 #4. Using bowtie2 create an index for HCMV 
+
 #build index for EF999921
 os.system('bowtie2-build EF999921.fasta EF999921_index')
 
@@ -137,11 +137,6 @@ for record in SeqIO.parse(file, "fasta"):
             max_contig = record.seq
             max_conlen = con_len
     
-#print to screen
-#print(count_contig)
-#print(con_total_len)
-#print(max_id, max_conlen)
-
 #write to log file the following:
 #6. number of contigs with a length > 1000
 logfile.write('There are '+str(count_contig)+' contigs > 1000 bp in the assembly.'+'\n')
@@ -153,21 +148,25 @@ contigout = open('contigout.fasta', 'w+')
 contigout.write('>'+ max_id + '\n' + str(max_contig) + '\n')
 contigout.close()
 
-#8. Use the longest query as blast input to query the nr nucleotide database limited to members of the Betaherpesvirinae subfamily
+#8. Use the longest contig as blast input to query the nr nucleotide database limited to members of the Betaherpesvirinae subfamily
+
 #enter the input/output files 
-input_file = 'Betaherpesvirinae.fasta'
 query_file = 'contigout.fasta'
 output_file = 'blastn_results.csv'
 db_name = 'local_db'
 blast_log_file = 'blast_log.csv'
 
-#make a local database
-makeblast_cmd = 'makeblastdb -in '+input_file+' -out '+db_name+' -title '+db_name+' -dbtype nucl'
-os.system(makeblast_cmd)
+#make a local database only if option for args is full
+if option == "full":
+  #Get Betaherpesvirinae nucleotide sequences from NCBI if running full and save as Betaherpesvirinae.fasta
+  input_file = 'Betaherpesvirinae.fasta'
+  #make local database
+  makeblast_cmd = 'makeblastdb -in '+input_file+' -out '+db_name+' -title '+db_name+' -dbtype nucl'
+  os.system(makeblast_cmd)
 
 #blastn query
 blast_cmd = 'blastn -query '+query_file+' -db '+db_name+' -out '+output_file+' -outfmt "10 sacc pident length qstart qend sstart send bitscore evalue stitle"'
-#os.system(blast_cmd) 
+os.system(blast_cmd) 
 
 #assign headers
 headers = ['Subject accession', 'Percent identity', 'Alignment length', 'Start of alignment in query', 'End of alignment in query', 'Start of alignment in subject', 'End of alignment in subject', 'Bit score', 'E-value', 'Subject Title']
@@ -175,9 +174,10 @@ headers = ['Subject accession', 'Percent identity', 'Alignment length', 'Start o
 #write to log file the headers
 logfile.write(str('\t'.join(headers))+'\n')
 
-#write to log file the top 10 hits of blast query
+#open & read the blast results file generated by the blast query to write to logfile
 blast_results = open(output_file, 'r')
 results = blast_results.readlines()
+#write to log file the top 10 hits of blast query
 for line in results[0:10]:
   #print(line)
   logfile.write(str(line).replace(',','\t'))
